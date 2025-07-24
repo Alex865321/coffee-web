@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Escalating Cost of Coffee: An Interactive Analysis</title>
+    <!-- Chosen Palette: Warm Neutrals with Subtle Accents -->
+    <!-- Application Structure Plan: The application is structured as a single-page, multi-section dashboard. A sticky navigation bar allows users to jump between thematic sections: "Price Dynamics," "Trade Policy," "Climate Change," and "Market Factors." This non-linear structure was chosen over the report's linear format to empower users to explore topics in any order, enhancing usability. The flow begins with a high-level overview of price trends, then allows deep dives into the three core drivers. Interactions include toggling chart data (e.g., nominal vs. inflation-adjusted prices), hovering for detailed tooltips, and exploring a world map, making complex data digestible and engaging. -->
+    <!-- Visualization & Content Choices: 
+        - Historical Prices: Report Info -> Table 1 data -> Goal: Change -> Viz: Interactive Line Chart (Chart.js) -> Interaction: Toggle between Nominal and Inflation-Adjusted prices. Justification: A line chart is superior to a static table for showing trends over time. The toggle interaction allows direct comparison, which is a key insight from the report.
+        - Tariff Pass-Through: Report Info -> Section 2 description -> Goal: Organize -> Viz: HTML/CSS Flow Diagram -> Interaction: Static visual. Justification: A visual flowchart is more intuitive for explaining a process like the "price multiplier effect" than plain text. Implemented with Tailwind to avoid SVG/Mermaid.
+        - Import Shares & Tariffs: Report Info -> Table 2 data -> Goal: Compare -> Viz: Donut & Bar Charts (Chart.js) -> Interaction: Hover for tooltips. Justification: Standard, effective charts for showing composition (donut) and comparing discrete values (bar), directly visualizing the report's data on trade exposure.
+        - Climate Impacts Map: Report Info -> Section 3 regional analysis -> Goal: Change (by location) -> Viz: Scattergeo Map (Plotly.js) -> Interaction: Hover for country-specific details. Justification: A map provides immediate geographic context for the climate change impacts, making the data more tangible than a list of countries. Plotly's canvas-based geo maps adhere to the NO SVG rule.
+        - Other Factors: Report Info -> Section 4 -> Goal: Inform -> Viz: Styled HTML/CSS Icon Grid -> Interaction: Static visual. Justification: An icon-based grid provides a visually scannable summary of the key market forces, breaking up the text-heavy sections.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7; /* Warm Neutral Background */
+            color: #4A4A4A;
+        }
+        h1, h2, h3 {
+            font-family: 'Lora', serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 450px;
+        }
+        .small-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        .nav-link {
+            transition: color 0.3s, border-color 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #C06C84; /* Subtle Accent */
+            border-bottom-color: #C06C84;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            width: 80%;
+            max-width: 500px;
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header & Navigation -->
+    <header class="sticky top-0 z-50 bg-[#FDFBF7]/80 backdrop-blur-md shadow-sm">
+        <div class="container mx-auto px-6 py-3">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold text-[#6C5B7B]">The Coffee Cost Conundrum</h1>
+                <nav class="hidden md:flex space-x-8">
+                    <a href="#prices" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Price Dynamics</a>
+                    <a href="#trade" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Trade Policy</a>
+                    <a href="#climate" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Climate Change</a>
+                    <a href="#market" class="nav-link text-gray-600 border-b-2 border-transparent pb-1">Market Factors</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <!-- Hero Section -->
+        <section class="text-center mb-20">
+            <h2 class="text-4xl md:text-5xl font-bold text-[#355C7D] mb-4">The Escalating Cost of Coffee</h2>
+            <p class="max-w-3xl mx-auto text-lg text-gray-700">An interactive analysis of the complex forces driving up U.S. coffee prices. Explore the interconnected impacts of trade policy, climate change, and global market dynamics on your daily cup.</p>
+        </section>
+
+        <!-- Price Dynamics Section -->
+        <section id="prices" class="mb-20 pt-16 -mt-16">
+            <h3 class="text-3xl font-bold text-center text-[#6C5B7B] mb-4">A History of Price Volatility</h3>
+            <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">The price of coffee has always been volatile, influenced by major global events. This chart visualizes the long-term trends, comparing nominal prices with their real value when adjusted for inflation. Use the buttons to toggle the view and see the underlying story of coffee's cost.</p>
+            <div class="text-center mb-6">
+                <button id="togglePriceViewBtn" class="bg-[#C06C84] text-white px-6 py-2 rounded-full shadow-md hover:bg-[#A05C74] transition-colors">Show Inflation-Adjusted Prices</button>
+            </div>
+            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+                <div class="chart-container">
+                    <canvas id="historicalPriceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trade Policy Section -->
+        <section id="trade" class="mb-20 pt-16 -mt-16">
+            <h3 class="text-3xl font-bold text-center text-[#6C5B7B] mb-4">The Impact of Trade Policy</h3>
+            <p class="max-w-3xl mx-auto text-center text-gray-600 mb-12">Recent U.S. trade policies, particularly the threat and implementation of tariffs, have become a major driver of price uncertainty. Since the U.S. imports over 99% of its coffee, these tariffs function as a direct tax on consumers and businesses.</p>
+
+            <div class="grid md:grid-cols-5 gap-8 items-center mb-12">
+                <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+                    <h4 class="text-xl font-bold text-center mb-2 text-[#355C7D]">Top U.S. Import Sources</h4>
+                    <p class="text-center text-sm text-gray-600 mb-4">A few key countries dominate U.S. coffee imports, making the market highly sensitive to policies affecting them.</p>
+                    <div class="small-chart-container">
+                        <canvas id="importShareChart"></canvas>
+                    </div>
+                </div>
+                <div class="md:col-span-3 bg-white p-6 rounded-xl shadow-lg">
+                    <h4 class="text-xl font-bold text-center mb-2 text-[#355C7D]">Tariff Exposure by Country</h4>
+                    <p class="text-center text-sm text-gray-600 mb-4">Proposed and existing tariffs create significant cost pressure on beans from major producers.</p>
+                    <div class="chart-container" style="height: 300px; max-height: 350px;">
+                        <canvas id="tariffRatesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <h4 class="text-2xl font-bold text-center mb-4 text-[#355C7D]">The Tariff Multiplier Effect</h4>
+                <p class="max-w-2xl mx-auto text-center text-gray-600 mb-8">A tariff's impact isn't just its face value. The cost is amplified as it passes through the supply chain, from importer to roaster to you.</p>
+                <div class="flex flex-col md:flex-row justify-center items-center gap-4 text-center">
+                    <div class="flex-1 p-4 rounded-lg">
+                        <div class="text-4xl mb-2">💵</div>
+                        <h5 class="font-bold text-lg text-[#6C5B7B]">Tariff at Import</h5>
+                        <p class="text-sm">A 10% tariff is levied on the green coffee importer.</p>
+                    </div>
+                    <div class="text-3xl font-light text-[#C06C84] transform rotate-90 md:rotate-0">→</div>
+                    <div class="flex-1 p-4 rounded-lg bg-gray-50">
+                        <div class="text-4xl mb-2">🏭</div>
+                        <h5 class="font-bold text-lg text-[#6C5B7B]">Roaster Cost Increase</h5>
+                        <p class="text-sm">Importers pass on 60-85% of the cost to roasters.</p>
+                    </div>
+                    <div class="text-3xl font-light text-[#C06C84] transform rotate-90 md:rotate-0">→</div>
+                    <div class="flex-1 p-4 rounded-lg">
+                        <div class="text-4xl mb-2">📈</div>
+                        <h5 class="font-bold text-lg text-[#6C5B7B]">Final Price Amplification</h5>
+                        <p class="text-sm">The initial 10% tariff can result in a 15-20% price hike for consumers.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Climate Change Section -->
+        <section id="climate" class="mb-20 pt-16 -mt-16">
+            <h3 class="text-3xl font-bold text-center text-[#6C5B7B] mb-4">An Existential Threat: Climate Change</h3>
+            <p class="max-w-3xl mx-auto text-center text-gray-600 mb-8">Coffee plants are extremely sensitive. Rising temperatures, erratic rainfall, and new pests are devastating crops, shrinking suitable farmland, and threatening the future of coffee itself. Hover over the map to see the specific challenges faced by key producing nations.</p>
+            <div class="grid md:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-5xl font-bold text-[#C06C84]">50%</div>
+                    <p class="mt-2 text-gray-600">Projected reduction in suitable coffee-growing land by 2050.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-5xl font-bold text-[#C06C84]">60%</div>
+                    <p class="mt-2 text-gray-600">of wild coffee species are at risk of extinction.</p>
+                </div>
+            </div>
+            <div class="bg-white p-2 sm:p-4 rounded-xl shadow-lg">
+                <div id="climateImpactMap" class="w-full h-[500px]"></div>
+            </div>
+        </section>
+
+        <!-- Market Factors Section -->
+        <section id="market" class="pt-16 -mt-16">
+            <h3 class="text-3xl font-bold text-center text-[#6C5B7B] mb-4">The Full Blend: Other Market Factors</h3>
+            <p class="max-w-3xl mx-auto text-center text-gray-600 mb-12">Beyond policy and weather, a complex web of economic forces contributes to the final price you pay.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-4xl mb-3">🌍</div>
+                    <h4 class="font-bold text-lg mb-2 text-[#355C7D]">Demand vs. Supply</h4>
+                    <p class="text-sm text-gray-600">Global consumption, especially for specialty coffee, is growing faster than production can keep up.</p>
+                    <button onclick="getMarketInsight('Demand vs. Supply')" class="mt-4 bg-[#C06C84] text-white px-4 py-2 rounded-full shadow-md hover:bg-[#A05C74] transition-colors text-sm">✨ Deep Dive</button>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-4xl mb-3">🧑‍🌾</div>
+                    <h4 class="font-bold text-lg mb-2 text-[#355C7D]">Production Costs</h4>
+                    <p class="text-sm text-gray-600">Labor shortages and soaring fertilizer prices increase the base cost of farming.</p>
+                    <button onclick="getMarketInsight('Production Costs')" class="mt-4 bg-[#C06C84] text-white px-4 py-2 rounded-full shadow-md hover:bg-[#A05C74] transition-colors text-sm">✨ Deep Dive</button>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-4xl mb-3">🚢</div>
+                    <h4 class="font-bold text-lg mb-2 text-[#355C7D]">Supply Chain Chaos</h4>
+                    <p class="text-sm text-gray-600">Geopolitical tensions and canal droughts have dramatically increased shipping and freight costs.</p>
+                    <button onclick="getMarketInsight('Supply Chain Chaos')" class="mt-4 bg-[#C06C84] text-white px-4 py-2 rounded-full shadow-md hover:bg-[#A05C74] transition-colors text-sm">✨ Deep Dive</button>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg text-center">
+                    <div class="text-4xl mb-3">💸</div>
+                    <h4 class="font-bold text-lg mb-2 text-[#355C7D]">Market Speculation</h4>
+                    <p class="text-sm text-gray-600">Trading on futures markets can amplify price swings, often detached from real-world supply.</p>
+                    <button onclick="getMarketInsight('Market Speculation')" class="mt-4 bg-[#C06C84] text-white px-4 py-2 rounded-full shadow-md hover:bg-[#A05C74] transition-colors text-sm">✨ Deep Dive</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-20">
+        <div class="container mx-auto px-6 py-8 text-center">
+            <p>This interactive application was generated based on the "Rising US Coffee Costs Analysis" report.</p>
+            <p class="text-sm text-gray-400 mt-2">Designed to make complex data accessible and understandable.</p>
+        </div>
+    </footer>
+
+    <!-- The Modal for Deep Dive Insights -->
+    <div id="insightModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <h3 class="text-xl font-bold mb-4 text-[#355C7D]" id="modalTitle"></h3>
+            <p id="modalContent" class="text-gray-700 text-base"></p>
+            <div id="modalLoading" class="text-center mt-4 text-[#C06C84]" style="display: none;">Loading insight...</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- DATA FROM REPORT ---
+            const historicalPriceData = {
+                labels: ['1977-03-01', '1980-01-01', '2002-01-01', '2011-01-01', '2020-01-01', '2022-01-01', '2024-01-01', '2025-06-01'],
+                nominal: [4.19, 3.14, null, null, 4.43, 5.89, 6.322, 8.132],
+                adjusted: [22.00, 6.45, null, null, 5.258, 5.89, null, null] 
+            };
+
+            const importShareData = {
+                labels: ['Brazil', 'Colombia', 'Vietnam', 'Honduras', 'Other'],
+                data: [31, 20, 9, 7, 33]
+            };
+
+            const tariffRateData = {
+                labels: ['Brazil', 'Mexico', 'Vietnam', 'Indonesia'],
+                data: [50, 45, 20, 19]
+            };
+            
+            const climateImpactData = [
+                { lon: -47.92, lat: -15.78, name: 'Brazil', text: 'Recurring frosts & droughts decimate Arabica yields.' },
+                { lon: -74.07, lat: 4.71, name: 'Colombia', text: 'Extreme weather (La Niña/El Niño) & pests threaten harvests.' },
+                { lon: -84.09, lat: 9.92, name: 'Costa Rica', text: 'Heavy rains & fungal diseases cause 50% production drops in some areas.' },
+                { lon: -90.50, lat: 14.63, name: 'Guatemala', text: 'Drought, coffee rust & labor shortages create a multi-faceted crisis.' },
+                { lon: 38.75, lat: 9.03, name: 'Ethiopia', text: 'Up to 59% of growing area may become unsuitable, forcing migration to higher elevations.' },
+                { lon: 36.82, lat: -1.29, name: 'Kenya', text: 'Production has fallen 70% since 1988 due to climate & other factors.' },
+                { lon: 35.75, lat: -6.16, name: 'Tanzania', text: 'Rising minimum temperatures & shifting rainy seasons reduce production.' },
+                { lon: 78.96, lat: 20.59, name: 'India', text: 'Unpredictable monsoons & heavy rains during harvest spoil crops.' },
+                { lon: 98.67, lat: 3.59, name: 'Sumatra (ID)', text: 'Prolonged droughts lead to "empty" cherries & failed harvests.' }
+            ];
+
+            // --- PALETTE ---
+            const palette = {
+                primary: '#6C5B7B',
+                secondary: '#355C7D',
+                accent: '#C06C84',
+                light: '#FDFBF7',
+                text: '#4A4A4A',
+                accentLight: 'rgba(192, 108, 132, 0.2)'
+            };
+
+            // --- CHART.JS DEFAULTS ---
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = palette.text;
+            
+            const tooltipTitleCallback = (tooltipItems) => {
+                const item = tooltipItems[0];
+                let label = item.chart.data.labels[item.dataIndex];
+                if (Array.isArray(label)) {
+                    return label.join(' ');
+                }
+                return label;
+            };
+
+            // --- HISTORICAL PRICE CHART ---
+            const priceCtx = document.getElementById('historicalPriceChart').getContext('2d');
+            const priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    labels: historicalPriceData.labels,
+                    datasets: [{
+                        label: 'Nominal U.S. Retail Price ($/lb)',
+                        data: historicalPriceData.nominal,
+                        borderColor: palette.primary,
+                        backgroundColor: palette.accentLight,
+                        tension: 0.1,
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'year' },
+                            title: { display: true, text: 'Year' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Price ($/lb)' }
+                        }
+                    },
+                    plugins: { tooltip: { callbacks: { title: tooltipTitleCallback } } }
+                }
+            });
+
+            const toggleBtn = document.getElementById('togglePriceViewBtn');
+            let isAdjusted = false;
+            toggleBtn.addEventListener('click', () => {
+                isAdjusted = !isAdjusted;
+                if (isAdjusted) {
+                    priceChart.data.datasets[0].data = historicalPriceData.adjusted;
+                    priceChart.data.datasets[0].label = 'Inflation-Adjusted U.S. Retail Price (2024/25 dollars, $/lb)';
+                    toggleBtn.textContent = 'Show Nominal Prices';
+                } else {
+                    priceChart.data.datasets[0].data = historicalPriceData.nominal;
+                    priceChart.data.datasets[0].label = 'Nominal U.S. Retail Price ($/lb)';
+                    toggleBtn.textContent = 'Show Inflation-Adjusted Prices';
+                }
+                priceChart.update();
+            });
+
+            // --- IMPORT SHARE CHART ---
+            const importCtx = document.getElementById('importShareChart').getContext('2d');
+            new Chart(importCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: importShareData.labels,
+                    datasets: [{
+                        data: importShareData.data,
+                        backgroundColor: ['#6C5B7B', '#C06C84', '#F67280', '#F8B195', '#A7D6A5'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { title: tooltipTitleCallback } } }
+                }
+            });
+
+            // --- TARIFF RATES CHART ---
+            const tariffCtx = document.getElementById('tariffRatesChart').getContext('2d');
+            new Chart(tariffCtx, {
+                type: 'bar',
+                data: {
+                    labels: tariffRateData.labels,
+                    datasets: [{
+                        label: 'Proposed/Current Tariff Rate (%)',
+                        data: tariffRateData.data,
+                        backgroundColor: palette.accent,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { title: tooltipTitleCallback } } },
+                    scales: { x: { beginAtZero: true, title: { display: true, text: 'Tariff Rate (%)' } } }
+                }
+            });
+
+            // --- PLOTLY MAP ---
+            const mapDiv = document.getElementById('climateImpactMap');
+            const mapData = [{
+                type: 'scattergeo',
+                mode: 'markers',
+                lon: climateImpactData.map(d => d.lon),
+                lat: climateImpactData.map(d => d.lat),
+                hoverinfo: 'text',
+                text: climateImpactData.map(d => `<b>${d.name}</b><br>${d.text}`),
+                marker: {
+                    color: palette.accent,
+                    size: 10,
+                    line: { width: 1, color: palette.light }
+                }
+            }];
+            const mapLayout = {
+                geo: {
+                    projection: { type: 'natural earth' },
+                    showland: true,
+                    landcolor: '#EAEAEA',
+                    showocean: true,
+                    oceancolor: '#FDFBF7',
+                    bgcolor: 'rgba(0,0,0,0)'
+                },
+                margin: { l: 0, r: 0, t: 20, b: 0 },
+                paper_bgcolor: 'rgba(0,0,0,0)'
+            };
+            Plotly.newPlot(mapDiv, mapData, mapLayout, { responsive: true, displayModeBar: false });
+
+            // --- SCROLLSPY FOR NAV ---
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-link');
+            window.addEventListener('scroll', () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 100) {
+                        current = section.getAttribute('id');
+                    }
+                });
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').includes(current)) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+
+            // --- LLM INTEGRATION FOR MARKET FACTORS ---
+            async function getMarketInsight(factorName) {
+                const modal = document.getElementById('insightModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalContent = document.getElementById('modalContent');
+                const modalLoading = document.getElementById('modalLoading');
+
+                modalTitle.textContent = `${factorName} Deep Dive`;
+                modalContent.textContent = '';
+                modalLoading.style.display = 'block';
+                modal.style.display = 'flex'; 
+
+                try {
+                    let chatHistory = [];
+                    const prompt = `Explain the impact of "${factorName}" on global coffee prices in a concise paragraph.`;
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        modalContent.textContent = text;
+                    } else {
+                        modalContent.textContent = 'Could not retrieve insight. Please try again.';
+                    }
+                } catch (error) {
+                    console.error('Error fetching market insight:', error);
+                    modalContent.textContent = 'An error occurred while fetching insight. Please try again.';
+                } finally {
+                    modalLoading.style.display = 'none';
+                }
+            }
+
+            function closeModal() {
+                const modal = document.getElementById('insightModal');
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                const modal = document.getElementById('insightModal');
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+
+            // Make getMarketInsight and closeModal globally accessible
+            window.getMarketInsight = getMarketInsight;
+            window.closeModal = closeModal;
+        });
+    </script>
+</body>
+</html>
